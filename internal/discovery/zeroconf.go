@@ -856,16 +856,16 @@ func buildServiceQueryReplyFiltered(query []byte, svc mdnsServiceConfig, hostFQD
 		_ = builder.SRVResource(dnsmessage.ResourceHeader{
 			Name:  instName,
 			Type:  dnsmessage.TypeSRV,
-			Class: dnsmessage.ClassINET,
+			Class: rrClass,
 			TTL:   svcTTL,
 		}, dnsmessage.SRVResource{Port: svc.port, Target: hostName})
 		_ = builder.TXTResource(dnsmessage.ResourceHeader{
 			Name:  instName,
 			Type:  dnsmessage.TypeTXT,
-			Class: dnsmessage.ClassINET,
+			Class: rrClass,
 			TTL:   svcTTL,
 		}, dnsmessage.TXTResource{TXT: svc.text})
-		_ = appendHostAddrResources(&builder, hostName, dnsmessage.ClassINET, hostTTL, v4, v6)
+		_ = appendHostAddrResources(&builder, hostName, rrClass, hostTTL, v4, v6)
 	}
 
 	out, errFinish := builder.Finish()
