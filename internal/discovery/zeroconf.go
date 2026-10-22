@@ -241,8 +241,12 @@ func buildHostAddressReplyFiltered(query []byte, hostFQDN string, ips []string, 
 		rrClass = dnsmessage.ClassINET
 		ttl = mdnsLegacyRecordTTL
 	}
+	var responseID uint16
+	if legacyUnicast {
+		responseID = hdr.ID
+	}
 	builder := dnsmessage.NewBuilder(nil, dnsmessage.Header{
-		ID:            hdr.ID,
+		ID:            responseID,
 		Response:      true,
 		Authoritative: true,
 	})
@@ -763,8 +767,12 @@ func buildServiceQueryReplyFiltered(query []byte, svc mdnsServiceConfig, hostFQD
 	}
 
 	v4, v6 := splitIPv4AndIPv6(ips)
+	var responseID uint16
+	if legacyUnicast {
+		responseID = hdr.ID
+	}
 	builder := dnsmessage.NewBuilder(nil, dnsmessage.Header{
-		ID:            hdr.ID,
+		ID:            responseID,
 		Response:      true,
 		Authoritative: true,
 	})
