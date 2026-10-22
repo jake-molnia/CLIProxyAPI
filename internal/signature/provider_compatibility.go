@@ -74,7 +74,9 @@ func SignatureProviderFromModelName(modelName string) SignatureProvider {
 	// GPT). Only when the last segment names no family does the full string
 	// get the legacy substring treatment.
 	candidate := lower
-	if idx := strings.LastIndexAny(lower, "/:"); idx >= 0 && idx < len(lower)-1 {
+	if idx := strings.LastIndex(lower, "/"); idx >= 0 && idx < len(lower)-1 {
+		candidate, _, _ = strings.Cut(lower[idx+1:], ":")
+	} else if idx := strings.LastIndex(lower, ":"); idx >= 0 && idx < len(lower)-1 {
 		candidate = lower[idx+1:]
 	}
 	if provider := signatureProviderFromModelNameValue(candidate); provider != SignatureProviderUnknown {
