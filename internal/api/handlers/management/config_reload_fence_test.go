@@ -155,16 +155,16 @@ func TestSetConfigAcceptsLoaderRewritesButRejectsLaterEdits(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.yaml")
-			if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
-				t.Fatal(err)
+			if errWrite := os.WriteFile(path, []byte(raw), 0o600); errWrite != nil {
+				t.Fatal(errWrite)
 			}
-			loaded, err := config.LoadConfig(path)
-			if err != nil {
-				t.Fatal(err)
+			loaded, errLoad := config.LoadConfig(path)
+			if errLoad != nil {
+				t.Fatal(errLoad)
 			}
-			disk, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
+			disk, errRead := os.ReadFile(path)
+			if errRead != nil {
+				t.Fatal(errRead)
 			}
 			if string(disk) == raw {
 				t.Fatal("fixture did not trigger a loader rewrite")
@@ -177,12 +177,12 @@ func TestSetConfigAcceptsLoaderRewritesButRejectsLaterEdits(t *testing.T) {
 			if got := h.configSnapshot().Port; got != 8309 {
 				t.Fatalf("management port = %d, want freshly loaded 8309", got)
 			}
-			if err := os.WriteFile(path, []byte("port: 8311\n"), 0o600); err != nil {
-				t.Fatal(err)
+			if errWrite := os.WriteFile(path, []byte("port: 8311\n"), 0o600); errWrite != nil {
+				t.Fatal(errWrite)
 			}
-			newer, err := config.LoadConfig(path)
-			if err != nil {
-				t.Fatal(err)
+			newer, errLoad := config.LoadConfig(path)
+			if errLoad != nil {
+				t.Fatal(errLoad)
 			}
 			h.SetConfig(newer)
 			h.SetConfig(loaded)

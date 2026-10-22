@@ -43,8 +43,8 @@ func TestReplyTransactionIDMatchesOnlyLegacyUnicast(t *testing.T) {
 				}
 				reply, unicast := builder.build(query, transport.legacy)
 				var response dnsmessage.Message
-				if err := response.Unpack(reply); err != nil {
-					t.Fatal(err)
+				if errUnpack := response.Unpack(reply); errUnpack != nil {
+					t.Fatal(errUnpack)
 				}
 				if len(response.Answers) == 0 {
 					t.Fatal("expected response records")

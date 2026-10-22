@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/home"
+	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 )
 
 func TestRebalanceReportsSuccessOnlyAfterConfigPublication(t *testing.T) {
@@ -23,6 +24,8 @@ func TestRebalanceReportsSuccessOnlyAfterConfigPublication(t *testing.T) {
 			t.Cleanup(func() { startHomeLogForwarder = previousStart })
 			service := newRegistryTestService(t, source.listener)
 			service.cfg.Home.DisableClusterDiscovery = false
+			service.coreManager = coreauth.NewManager(nil, nil, nil)
+			service.coreManager.SetConfig(service.cfg)
 			ctx, cancel := context.WithCancel(context.Background())
 			stageStarted, releaseStage := make(chan struct{}), make(chan struct{})
 			var stages atomic.Int32
@@ -43,6 +46,10 @@ func TestRebalanceReportsSuccessOnlyAfterConfigPublication(t *testing.T) {
 				home.ClearCurrent()
 			})
 			sourceClient := awaitRebalanceEvent(t, forwarder.bound)
+			sourceBundle := service.coreManager.HomeDispatchBundle()
+			if sourceBundle == nil {
+				t.Fatal("source dispatch bundle was not published")
+			}
 			close(source.migrate)
 			awaitRebalanceEvent(t, stageStarted)
 			// The target has acknowledged its subscription, but its replacement
@@ -60,6 +67,9 @@ func TestRebalanceReportsSuccessOnlyAfterConfigPublication(t *testing.T) {
 					t.Fatalf("canceled publication reported a rebalance result: %v", result)
 				default:
 				}
+				if service.coreManager.HomeDispatchBundle() != nil {
+					t.Fatal("canceled lifetime retained a selectable dispatch bundle")
+				}
 				return
 			}
 			close(releaseStage)
@@ -68,9 +78,10 @@ func TestRebalanceReportsSuccessOnlyAfterConfigPublication(t *testing.T) {
 				t.Fatalf("unexpected rebalance result: %v", result)
 			}
 			service.homeMu.Lock()
-			client, registry := service.homeClient, service.homeRegistry
+			client, registry, bundle := service.homeClient, service.homeRegistry, service.homeDispatchBundle
 			service.homeMu.Unlock()
-			if client == nil || client == sourceClient || registry == nil || !client.HeartbeatOK() {
+			if client == nil || client == sourceClient || registry == nil || !client.HeartbeatOK() ||
+				bundle == nil || bundle == sourceBundle || service.coreManager.HomeDispatchBundle() != bundle {
 				t.Fatal("success arrived before the replacement dispatch bundle was published")
 			}
 		})

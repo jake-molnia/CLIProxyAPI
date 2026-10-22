@@ -77,15 +77,15 @@ func TestModelRegistrationFenceDetachesNestedMetadata(t *testing.T) {
 		t.Fatal("auth missing")
 	}
 	current.Metadata["models"].([]any)[0].(map[string]any)["name"] = "qwen/new-model"
-	if _, err := manager.Update(t.Context(), current); err != nil {
-		t.Fatal(err)
+	if _, errUpdate := manager.Update(t.Context(), current); errUpdate != nil {
+		t.Fatal(errUpdate)
 	}
 	if fence.publishModels(service, base.ID, "vertex", []*ModelInfo{{ID: "qwen/old-model"}}) {
 		t.Error("nested metadata mutation altered the captured publication fence")
 	}
 	pluginResult := base.Clone()
 	pluginResult.Attributes = map[string]string{"plugin-result": "obsolete"}
-	if _, committed, err := manager.UpdateIfRegistrationCurrent(t.Context(), base, pluginResult); err != nil || committed {
-		t.Errorf("obsolete plugin auth update: committed=%v, error=%v", committed, err)
+	if _, committed, errUpdate := manager.UpdateIfRegistrationCurrent(t.Context(), base, pluginResult); errUpdate != nil || committed {
+		t.Errorf("obsolete plugin auth update: committed=%v, error=%v", committed, errUpdate)
 	}
 }
