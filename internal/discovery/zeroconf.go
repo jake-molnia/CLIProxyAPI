@@ -1025,6 +1025,10 @@ func openMDNSConn4(ifaces []net.Interface) (*ipv4.PacketConn, error) {
 	joined := 0
 	var lastErr error
 	for i := range ifaces {
+		if ifaces[i].Index <= 0 {
+			lastErr = fmt.Errorf("invalid multicast interface index %d", ifaces[i].Index)
+			continue
+		}
 		if errJoin := pkConn.JoinGroup(&ifaces[i], mdnsGroupAddrIPv4); errJoin == nil {
 			joined++
 		} else {
@@ -1052,6 +1056,10 @@ func openMDNSConn6(ifaces []net.Interface) (*ipv6.PacketConn, error) {
 	joined := 0
 	var lastErr error
 	for i := range ifaces {
+		if ifaces[i].Index <= 0 {
+			lastErr = fmt.Errorf("invalid multicast interface index %d", ifaces[i].Index)
+			continue
+		}
 		if errJoin := pkConn.JoinGroup(&ifaces[i], mdnsGroupAddrIPv6); errJoin == nil {
 			joined++
 		} else {
