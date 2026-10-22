@@ -1574,7 +1574,7 @@ func (m *Manager) GetByID(id string) (*Auth, bool) {
 // only if the manager still holds auth with the same model-registration
 // inputs. It does not persist or clone auth state. publish must be fast and
 // must not re-enter the manager.
-func (m *Manager) PublishIfRegistrationCurrent(id string, registrationEpoch uint64, prefix, provider string, disabled bool, authKind string, attributes map[string]string, publish func() bool) bool {
+func (m *Manager) PublishIfRegistrationCurrent(id string, registrationEpoch uint64, prefix, provider string, disabled bool, authKind string, attributes map[string]string, metadata map[string]any, publish func() bool) bool {
 	if m == nil || id == "" || publish == nil {
 		return false
 	}
@@ -1582,7 +1582,7 @@ func (m *Manager) PublishIfRegistrationCurrent(id string, registrationEpoch uint
 	defer releaseMutation()
 	m.mu.RLock()
 	current, ok := m.auths[id]
-	matches := ok && current != nil && modelRegistrationInputsMatch(current, registrationEpoch, prefix, provider, disabled, authKind, attributes)
+	matches := ok && current != nil && modelRegistrationInputsMatch(current, registrationEpoch, prefix, provider, disabled, authKind, attributes, metadata)
 	m.mu.RUnlock()
 	if !matches {
 		return false
@@ -1606,7 +1606,7 @@ func (m *Manager) UpdateIfRegistrationCurrent(ctx context.Context, base *Auth, u
 	defer releaseMutation()
 	m.mu.RLock()
 	current, ok := m.auths[base.ID]
-	matches := ok && current != nil && modelRegistrationInputsMatch(current, base.RegistrationEpoch, base.Prefix, base.Provider, base.Disabled || base.Status == StatusDisabled, base.AuthKind(), base.Attributes)
+	matches := ok && current != nil && modelRegistrationInputsMatch(current, base.RegistrationEpoch, base.Prefix, base.Provider, base.Disabled || base.Status == StatusDisabled, base.AuthKind(), base.Attributes, base.Metadata)
 	m.mu.RUnlock()
 	if !matches {
 		return nil, false, nil
@@ -1619,9 +1619,14 @@ func (m *Manager) UpdateIfRegistrationCurrent(ctx context.Context, base *Auth, u
 	return committedAuth, errUpdate == nil && didCommit && committedAuth != nil, errUpdate
 }
 
-func modelRegistrationInputsMatch(current *Auth, registrationEpoch uint64, prefix, provider string, disabled bool, authKind string, attributes map[string]string) bool {
+func modelRegistrationInputsMatch(current *Auth, registrationEpoch uint64, prefix, provider string, disabled bool, authKind string, attributes map[string]string, metadata map[string]any) bool {
 	if current == nil {
 		return false
+	}
+	for _, key := range []string{"openapi_models", "openapi-models", "models"} {
+		if !reflect.DeepEqual(current.Metadata[key], metadata[key]) {
+			return false
+		}
 	}
 	currentDisabled := current.Disabled || current.Status == StatusDisabled
 	return current.RegistrationEpoch == registrationEpoch &&

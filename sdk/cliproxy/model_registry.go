@@ -63,6 +63,7 @@ type modelRegistrationFence struct {
 	disabled                  bool
 	authKind                  string
 	attributes                map[string]string
+	metadata                  map[string]any
 }
 
 func newModelRegistrationFence(a *coreauth.Auth, cfg *config.Config) modelRegistrationFence {
@@ -90,6 +91,7 @@ func newModelRegistrationFence(a *coreauth.Auth, cfg *config.Config) modelRegist
 		disabled:          a.Disabled || a.Status == coreauth.StatusDisabled,
 		authKind:          a.AuthKind(),
 		attributes:        maps.Clone(a.Attributes),
+		metadata:          a.Clone().Metadata,
 	}
 }
 
@@ -144,5 +146,5 @@ func (f modelRegistrationFence) publishIfCurrent(s *Service, authID string, publ
 	if s == nil || s.coreManager == nil {
 		return publishWithConfig()
 	}
-	return s.coreManager.PublishIfRegistrationCurrent(authID, f.registrationEpoch, f.prefix, f.provider, f.disabled, f.authKind, f.attributes, publishWithConfig)
+	return s.coreManager.PublishIfRegistrationCurrent(authID, f.registrationEpoch, f.prefix, f.provider, f.disabled, f.authKind, f.attributes, f.metadata, publishWithConfig)
 }
