@@ -30,7 +30,11 @@ func TestShadowPluginDirIsProcessScoped(t *testing.T) {
 	if errDir != nil {
 		t.Fatalf("shadowPluginDir() error = %v", errDir)
 	}
-	want := filepath.Join(os.TempDir(), "cliproxy-pluginhost", fmt.Sprintf("pid-%d", os.Getpid()))
+	root := "cliproxy-pluginhost"
+	if runtime.GOOS != "windows" {
+		root = fmt.Sprintf("cliproxy-pluginhost-uid-%d", os.Geteuid())
+	}
+	want := filepath.Join(os.TempDir(), root, fmt.Sprintf("pid-%d", os.Getpid()))
 	if dir != want {
 		t.Fatalf("shadowPluginDir() = %q, want %q", dir, want)
 	}

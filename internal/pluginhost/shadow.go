@@ -124,7 +124,11 @@ func shadowCopyPluginToDir(file pluginFile, dir string) (string, error) {
 }
 
 func shadowPluginDir() (string, error) {
-	dir := filepath.Join(os.TempDir(), "cliproxy-pluginhost", shadowPluginProcessDirName(os.Getpid()))
+	root, errRoot := shadowPluginRoot()
+	if errRoot != nil {
+		return "", errRoot
+	}
+	dir := filepath.Join(root, shadowPluginProcessDirName(os.Getpid()))
 	if errMkdir := os.MkdirAll(dir, 0o700); errMkdir != nil {
 		return "", errMkdir
 	}

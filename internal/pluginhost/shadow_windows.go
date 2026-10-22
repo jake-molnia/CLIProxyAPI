@@ -60,3 +60,11 @@ func shadowPluginProcessAlive(pid int) bool {
 	}
 	return event == uint32(windows.WAIT_TIMEOUT)
 }
+
+func shadowPluginRoot() (string, error) {
+	root := filepath.Join(os.TempDir(), "cliproxy-pluginhost")
+	if errMkdir := os.MkdirAll(root, 0o700); errMkdir != nil {
+		return "", errMkdir
+	}
+	return root, nil
+}
