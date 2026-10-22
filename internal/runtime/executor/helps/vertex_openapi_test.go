@@ -111,3 +111,24 @@ func TestVertexOpenAPIBaseURLBuilders(t *testing.T) {
 		t.Fatal("expected third-party host not to be detected as Google Vertex host")
 	}
 }
+
+func TestVertexOpenAPIAutomaticRoutingExcludesUnsupportedPublishers(t *testing.T) {
+	for _, model := range []string{
+		"anthropic/claude-sonnet-4-6", "publishers/anthropic/models/claude-sonnet-4-6",
+		"anthropic/claude-sonnet-4-6(high)", "unknown-vendor/chat-model",
+	} {
+		t.Run(model, func(t *testing.T) {
+			if ShouldExecuteVertexOpenAPI(nil, model) {
+				t.Fatal("unsupported publisher automatically routed to OpenAPI")
+			}
+			auth := &cliproxyauth.Auth{Attributes: map[string]string{"openapi": "true"}}
+			if !ShouldExecuteVertexOpenAPI(auth, model) {
+				t.Fatal("explicit OpenAPI override was ignored")
+			}
+			auth.Attributes["openapi"] = "false"
+			if ShouldExecuteVertexOpenAPI(auth, model) {
+				t.Fatal("explicit OpenAPI disable was ignored")
+			}
+		})
+	}
+}

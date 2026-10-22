@@ -31,6 +31,7 @@ type rebalanceAdmissionHome struct {
 	configUpdates  chan string
 	pluginTasks    atomic.Bool
 	releases       chan []string
+	results        chan []string
 	releaseACK     <-chan struct{}
 	issued         chan struct{}
 	transportEnded chan struct{}
@@ -51,7 +52,8 @@ func newRebalanceAdmissionHome(t *testing.T, ambiguous bool) *rebalanceAdmission
 		listener: listener, ambiguous: ambiguous,
 		migrate: make(chan struct{}), reply: make(chan struct{}), stop: make(chan struct{}),
 		subscribed: make(chan []string, 4), configUpdates: make(chan string, 1), releases: make(chan []string, 4),
-		issued: make(chan struct{}), transportEnded: make(chan struct{}),
+		results: make(chan []string, 8),
+		issued:  make(chan struct{}), transportEnded: make(chan struct{}),
 		connections: make(map[net.Conn]struct{}),
 	}
 	accepted := make(chan struct{})
@@ -114,6 +116,13 @@ func (s *rebalanceAdmissionHome) serve(conn net.Conn) {
 			payload := `{"ok":true,"nodes":[]}`
 			if args[1] == "BALANCE" {
 				payload = `{"ok":true}`
+				if len(args) == 5 && args[2] == "RESULT" {
+					select {
+					case s.results <- append([]string(nil), args...):
+					case <-s.stop:
+						return
+					}
+				}
 			}
 			reply = fmt.Sprintf("$%d\r\n%s\r\n", len(payload), payload)
 		case "RPUSH":

@@ -147,3 +147,48 @@ func TestManagementWritesSurviveConcurrentReloadPublications_Issue6631(t *testin
 		t.Fatalf("config.yaml = request-retry %d, max-retry-credentials %d; want %d, %d", disk.RequestRetry, disk.MaxRetryCredentials, writes, writes)
 	}
 }
+
+func TestSetConfigAcceptsLoaderRewritesButRejectsLaterEdits(t *testing.T) {
+	for name, raw := range map[string]string{
+		"secret": "port: 8309\nremote-management:\n  secret-key: regression-test-secret\n",
+		"layout": "config-version: 8\nserver: {port: 8309}\nport: 8301\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := config.LoadConfig(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			disk, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(disk) == raw {
+				t.Fatal("fixture did not trigger a loader rewrite")
+			}
+			if loaded.SourceHash != config.ComputeSourceHash([]byte(raw)) {
+				t.Fatal("loader replaced the watcher's parsed-input hash")
+			}
+			h := &Handler{cfg: &config.Config{Port: 8303}, configFilePath: path}
+			h.SetConfig(loaded)
+			if got := h.configSnapshot().Port; got != 8309 {
+				t.Fatalf("management port = %d, want freshly loaded 8309", got)
+			}
+			if err := os.WriteFile(path, []byte("port: 8311\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			newer, err := config.LoadConfig(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.SetConfig(newer)
+			h.SetConfig(loaded)
+			if got := h.configSnapshot().Port; got != 8311 {
+				t.Fatalf("stale rewritten snapshot replaced newer port: %d", got)
+			}
+		})
+	}
+}
