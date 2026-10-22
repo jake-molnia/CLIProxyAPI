@@ -158,7 +158,8 @@ func (h *Handler) isStaleConfigFileSnapshotLocked(cfg *config.Config) bool {
 	if errRead != nil {
 		return false
 	}
-	return config.ComputeSourceHash(data) != cfg.SourceHash
+	hash := config.ComputeSourceHash(data)
+	return hash != cfg.SourceHash && hash != cfg.RewrittenSourceHash
 }
 
 // SetAuthManager updates the auth manager reference used by management endpoints.

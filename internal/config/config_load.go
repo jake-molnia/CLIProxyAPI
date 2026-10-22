@@ -240,6 +240,7 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 		return nil, errValidate
 	}
 
+	rewrittenData := data
 	// Hash remote management key if plaintext is detected (nested)
 	// We consider a value to be already hashed if it looks like a bcrypt hash ($2a$, $2b$, or $2y$ prefix).
 	if cfg.RemoteManagement.SecretKey != "" && !looksLikeBcrypt(cfg.RemoteManagement.SecretKey) {
@@ -251,7 +252,11 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 
 		// Persist the hashed value back to the config file to avoid re-hashing on next startup.
 		// Preserve YAML comments and ordering; update only the nested key.
-		_ = SaveConfigPreserveCommentsUpdateNestedScalar(configFile, managementSecretKeyPath(data), hashed)
+		if errSave := SaveConfigPreserveCommentsUpdateNestedScalar(configFile, managementSecretKeyPath(data), hashed); errSave == nil {
+			if updated, errUpdate := updateNestedScalarYAML(data, managementSecretKeyPath(data), hashed); errUpdate == nil {
+				rewrittenData = updated
+			}
+		}
 	}
 
 	cfg.RemoteManagement.PanelGitHubRepository = strings.TrimSpace(cfg.RemoteManagement.PanelGitHubRepository)
@@ -353,6 +358,11 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	// Record the exact bytes this config was parsed from, so a consumer can tell
 	// it apart from a newer version of the file.
 	cfg.SourceHash = ComputeSourceHash(data)
+	// Derive this from the parsed input, never from a later read that could
+	// include an unrelated writer's settings.
+	if normalized, _, errNormalize := NormalizeConfigLayout(rewrittenData, false); errNormalize == nil && !bytes.Equal(normalized, data) {
+		cfg.RewrittenSourceHash = ComputeSourceHash(normalized)
+	}
 
 	// Return the populated configuration struct.
 	return &cfg, nil
