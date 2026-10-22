@@ -15,14 +15,14 @@ import (
 )
 
 // IsVertexOpenAPIModel reports whether the given model identifier targets a
-// non-Google Vertex partner or open model (MaaS) served by endpoints/openapi.
+// known OpenAI-compatible Vertex publisher served by endpoints/openapi.
 func IsVertexOpenAPIModel(model string) bool {
 	baseModel := strings.TrimSpace(thinking.ParseSuffix(model).ModelName)
 	if baseModel == "" {
 		return false
 	}
 	if publisher, modelID, ok := cutVertexPublisherResource(baseModel); ok {
-		return !strings.EqualFold(publisher, "google") && !strings.Contains(modelID, "/")
+		return vertexOpenAPIPublisher(publisher) && !strings.Contains(modelID, "/")
 	}
 	publisher, modelID, ok := strings.Cut(baseModel, "/")
 	publisher = strings.TrimSpace(publisher)
@@ -30,10 +30,16 @@ func IsVertexOpenAPIModel(model string) bool {
 	if !ok || publisher == "" || modelID == "" || strings.Contains(modelID, "/") {
 		return false
 	}
-	if strings.EqualFold(publisher, "google") || strings.EqualFold(publisher, "models") || strings.EqualFold(publisher, "publishers") {
+	return vertexOpenAPIPublisher(publisher)
+}
+
+func vertexOpenAPIPublisher(publisher string) bool {
+	switch strings.ToLower(publisher) {
+	case "deepseek-ai", "qwen", "xai", "meta", "openai":
+		return true
+	default:
 		return false
 	}
-	return true
 }
 
 // NormalizeVertexOpenAPIModel normalizes a Vertex model identifier into the
