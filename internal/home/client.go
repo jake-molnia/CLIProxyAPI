@@ -182,15 +182,16 @@ type Client struct {
 	seedHost string
 	seedPort int
 
-	cmd         *redis.Client
-	cmdOptions  *redis.Options
-	sub         *redis.Client
-	release     *redis.Client
-	connections map[*homeDispatchConn]struct{}
-	closing     chan struct{}
-	lifecycle   config.CredentialConcurrencyConfig
-	limiter     atomic.Pointer[config.CredentialConcurrencyConfig]
-	managed     bool
+	cmd             *redis.Client
+	cmdOptions      *redis.Options
+	sub             *redis.Client
+	release         *redis.Client
+	connections     map[*homeDispatchConn]struct{}
+	closing         chan struct{}
+	lifecycle       config.CredentialConcurrencyConfig
+	limiter         atomic.Pointer[config.CredentialConcurrencyConfig]
+	managed         bool
+	configPublished chan struct{}
 	// releaseReady belongs to this acknowledged membership and is never copied to a replacement.
 	releaseReady bool
 
@@ -477,6 +478,17 @@ func (c *Client) managedLifetime() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.managed
+}
+
+// NotifyConfigPublished tells this lifetime's subscriber that the service has
+// activated its configuration and published the replacement dispatch bundle.
+func (c *Client) NotifyConfigPublished() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	select {
+	case c.configPublished <- struct{}{}:
+	default:
+	}
 }
 
 func (c *Client) addr() (string, bool) {
@@ -1982,6 +1994,15 @@ func (c *Client) RunConfigSubscriberLifetime(ctx context.Context, onConfig func(
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	configPublished := make(chan struct{}, 1)
+	c.mu.Lock()
+	c.configPublished = configPublished
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.configPublished = nil
+		c.mu.Unlock()
+	}()
 
 	c.closeBootstrapPools()
 	if errEnsure := c.ensureClients(); errEnsure != nil {
@@ -2096,7 +2117,13 @@ func (c *Client) RunConfigSubscriberLifetime(ctx context.Context, onConfig func(
 		}
 		return c.endConfigSubscriberLifetimeWithSubscription(err, pubsub, "subscription failure")
 	}
-	if errFinish := c.finishClusterRebalance(receiveCtx); errFinish != nil || receiveCtx.Err() != nil {
+	var errFinish error
+	if c.managedLifetime() {
+		errFinish = c.syncClusterBalance(receiveCtx)
+	} else {
+		errFinish = c.finishClusterRebalance(receiveCtx)
+	}
+	if errFinish != nil || receiveCtx.Err() != nil {
 		return endReceiveFailure(errFinish)
 	}
 	if onReady != nil {
@@ -2108,6 +2135,14 @@ func (c *Client) RunConfigSubscriberLifetime(ctx context.Context, onConfig func(
 		select {
 		case <-receiveCtx.Done():
 			return endReceiveFailure(context.Cause(receiveCtx))
+		case <-configPublished:
+			if receiveCtx.Err() != nil {
+				return endReceiveFailure(context.Cause(receiveCtx))
+			}
+			if errFinish := c.finishClusterRebalance(receiveCtx); errFinish != nil {
+				return endReceiveFailure(errFinish)
+			}
+			continue
 		case event = <-events:
 		}
 		if receiveCtx.Err() != nil {

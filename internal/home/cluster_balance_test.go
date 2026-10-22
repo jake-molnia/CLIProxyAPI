@@ -229,7 +229,14 @@ func TestRunConfigSubscriberLifetimeExecutesHomePlanAndReportsSuccess(t *testing
 	ready := false
 	_ = next.RunConfigSubscriberLifetime(context.Background(), func([]byte) error {
 		return next.SetLifecycleConfig(config.CredentialConcurrencyConfig{LifecycleConfigRevision: 1})
-	}, func() { ready = next.HeartbeatOK(); next.Close() })
+	}, func() {
+		ready = next.HeartbeatOK()
+		// This synchronous test owner publishes the fetched configuration here.
+		if errFinish := next.finishClusterRebalance(context.Background()); errFinish != nil {
+			t.Errorf("finish published rebalance: %v", errFinish)
+		}
+		next.Close()
+	})
 	if !ready || next.balance.moving || next.balance.result != "" {
 		t.Fatal("target ACK/probe/result did not complete")
 	}

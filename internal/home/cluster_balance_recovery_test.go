@@ -255,6 +255,10 @@ func TestClusterBalanceRollbackRecoveryAcrossLifetimes(t *testing.T) {
 				errRecovered := client.RunConfigSubscriberLifetime(ctx, apply, func() {
 					ready = client.HeartbeatOK() && client.reconnectFailures == 0 &&
 						recoveryState(client.recoveryState.Load()) == recoveryStateStable
+					// This synchronous test owner publishes the recovered configuration here.
+					if errFinish := client.finishClusterRebalance(ctx); errFinish != nil {
+						t.Errorf("finish published recovery: %v", errFinish)
+					}
 					cancel()
 				})
 				if !ready || !errors.Is(errRecovered, context.Canceled) {

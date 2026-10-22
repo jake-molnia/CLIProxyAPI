@@ -741,6 +741,7 @@ func (s *Service) runHomeConfigWorkerWithSupervisor(lifetimeCtx, homeCtx context
 			return
 		}
 		if publish != nil {
+			client.NotifyConfigPublished()
 			s.startHomeInFlightPublisher(lifetimeCtx, client, registry, supervisor)
 			s.startHomeUsageForwarder(lifetimeCtx, client)
 		}
