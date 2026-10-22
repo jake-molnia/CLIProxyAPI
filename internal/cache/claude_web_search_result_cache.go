@@ -17,6 +17,7 @@ import (
 const (
 	defaultClaudeWebSearchResultTTL   = 24 * time.Hour
 	defaultClaudeWebSearchResultLimit = 1024
+	maxClaudeWebSearchResultBytes     = 64 << 20
 )
 
 type claudeWebSearchResultEntry struct {
@@ -31,6 +32,7 @@ var (
 	claudeWebSearchResultIndex = make(map[string]*list.Element)
 	claudeWebSearchResultOrder = list.New()
 	claudeWebSearchResultNow   = time.Now
+	claudeWebSearchResultBytes int
 )
 
 type claudeWebSearchResultKVClient interface {
@@ -62,8 +64,8 @@ func claudeWebSearchResultKVKey(sessionKey, toolUseID string) string {
 }
 
 // CacheClaudeWebSearchResult stores the raw content of one web_search_tool_result
-// block for a session. Memory is bounded by the maximum entry count (limit);
-// least recently used entries are evicted when the entry limit is exceeded.
+// block for a session. Local retained payloads are bounded by the entry limit
+// and a 64 MiB byte budget; least recently used entries are evicted first.
 func CacheClaudeWebSearchResult(sessionKey, toolUseID string, content []byte, ttl time.Duration, limit int) {
 	CacheClaudeWebSearchResultBestEffort(context.Background(), sessionKey, toolUseID, content, ttl, limit)
 }
@@ -105,8 +107,14 @@ func CacheClaudeWebSearchResultBestEffort(ctx context.Context, sessionKey, toolU
 	if element, exists := claudeWebSearchResultIndex[key]; exists {
 		removeClaudeWebSearchResultLocked(element)
 	}
-	if claudeWebSearchResultOrder.Len() >= limit {
+	if len(content) > maxClaudeWebSearchResultBytes {
+		return false
+	}
+	if claudeWebSearchResultOrder.Len() >= limit || claudeWebSearchResultBytes+len(content) > maxClaudeWebSearchResultBytes {
 		purgeExpiredClaudeWebSearchResultLocked(now)
+	}
+	for claudeWebSearchResultOrder.Len() >= limit || claudeWebSearchResultBytes+len(content) > maxClaudeWebSearchResultBytes {
+		removeClaudeWebSearchResultLocked(claudeWebSearchResultOrder.Back())
 	}
 	entry := &claudeWebSearchResultEntry{
 		key:       key,
@@ -115,13 +123,7 @@ func CacheClaudeWebSearchResultBestEffort(ctx context.Context, sessionKey, toolU
 		expiresAt: now.Add(ttl),
 	}
 	claudeWebSearchResultIndex[key] = claudeWebSearchResultOrder.PushFront(entry)
-	for claudeWebSearchResultOrder.Len() > limit {
-		oldest := claudeWebSearchResultOrder.Back()
-		if oldest == nil {
-			break
-		}
-		removeClaudeWebSearchResultLocked(oldest)
-	}
+	claudeWebSearchResultBytes += len(entry.content)
 	return true
 }
 
@@ -195,6 +197,7 @@ func ClearClaudeWebSearchResultCache() {
 	defer claudeWebSearchResultMu.Unlock()
 	claudeWebSearchResultIndex = make(map[string]*list.Element)
 	claudeWebSearchResultOrder.Init()
+	claudeWebSearchResultBytes = 0
 }
 
 func purgeExpiredClaudeWebSearchResultCache(now time.Time) {
@@ -216,6 +219,7 @@ func purgeExpiredClaudeWebSearchResultLocked(now time.Time) {
 
 func removeClaudeWebSearchResultLocked(element *list.Element) {
 	entry := element.Value.(*claudeWebSearchResultEntry)
+	claudeWebSearchResultBytes -= len(entry.content)
 	delete(claudeWebSearchResultIndex, entry.key)
 	claudeWebSearchResultOrder.Remove(element)
 }

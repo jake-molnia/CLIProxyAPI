@@ -130,13 +130,13 @@ func TestClaudeWebSearchResultCacheExpiresAndSlides(t *testing.T) {
 	}
 }
 
-func TestClaudeWebSearchResultCacheEnforcesEntryLimitWithoutByteCap(t *testing.T) {
+func TestClaudeWebSearchResultCacheEnforcesEntryLimit(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	useClaudeWebSearchResultClock(t, &now)
 
 	const limit = 4
 	longSession := strings.Repeat("s", 4096)
-	// Large payloads must not be rejected by a byte limit; only the entry limit applies.
+	// A payload within the byte budget remains cacheable.
 	largeContent := bytes.Repeat([]byte("a"), 5<<20)
 	CacheClaudeWebSearchResult("s", "large", largeContent, time.Hour, limit)
 	if got, ok := GetClaudeWebSearchResult("s", "large"); !ok || len(got) != len(largeContent) {
